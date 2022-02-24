@@ -1,7 +1,7 @@
 ---
 title: "Lake Water Quality Analysis"
-author: "Matthew Ross"
-date: "9/17/2019"
+author: "Matthew Ross, completed by Samantha Clark"
+date: "2/23/2022"
 output: html_document
 ---
 
@@ -44,6 +44,7 @@ nutr <- lagos$epi_nutr
 
 #Look at column names
 #names(nutr)
+
 ```
 
 ### Subset columns nutr to only keep key info that we want
@@ -120,52 +121,97 @@ mapview(mean_spatial,zcol='log10_mean_chl')
 
 # Class work
 
-## 1) What is the correlation between Secchi Disk Depth and Chlorophyll a for
-sites with at least 200 observations?
+## 1) What is the correlation between Secchi Disk Depth and Chlorophyll a for sites with at least 200 observations?
 
 - Here, I just want a plot of chla vs secchi for all sites 
 
 ```{r}
-#Your code here
-
+#plot
+ggplot(chla_secchi_200) + aes(x=chla, y=secchi) + geom_point() + geom_smooth()
 ```
 
+As the amount of chla increases, secchi decreases.
 
 ## Why might this be the case? 
-
+  As there is greater chla, there is more algae in the water. The more algae, the less clarity and therefore a lower secchi number.
 
 ## 2) What states have the most data? 
 
-### 2a) First you will need to make a lagos spatial dataset that has the total 
-number of counts per site.
+### 2a) First you will need to make a lagos spatial dataset that has the total number of counts per site.
 
 ```{r}
 
-## Your code here
+countoflakes <- nutr %>%
+  group_by(lagoslakeid) %>%
+  summarize(count = n())
+
+twoa <- inner_join(spatial_lakes, countoflakes %>%
+                            distinct(lagoslakeid,.keep_all=T),
+                          by='lagoslakeid')
 ```
 
 
-### 2b) Second, you will need to join this point dataset to the us_boundaries 
-data. 
+### 2b) Second, you will need to join this point dataset to the us_boundaries data. 
 
 ```{r}
-## Your code here
+
+states <- us_states()
+lakesbystate <- st_join(twoa, states)
+
 ```
 
 
-### 2c) Then you will want to group by state and sum all the observations in that
-state and arrange that data from most to least toatl observations per state. 
+### 2c) Then you will want to group by state and sum all the observations in that state and arrange that data from most to least toatl observations per state. 
 
 ```{r}
-## Your code here. 
+
+Final <- lakesbystate %>%
+  group_by(state_name) %>%
+  summarize(
+    sum = sum(count)
+  ) %>%
+  arrange(desc(sum))
 ```
+
+The states with the most data are Minnesota (358137), Wisconsin (145910), and Michigan (100683).
+The next largest are Maine, New York, Vermont, Rhode Island, Missouri, and New Hampshire with between 90,000 and 10,000 lakes. 
 
 ##3 Is there a spatial pattern in Secchi disk depth for lakes with at least 200 
 observations?
 
 ```{r}
-## Your code here
+
+#filter out info we dont need
+clarity_only2 <- nutr %>%
+  select(lagoslakeid,sampledate,doc,secchi) %>%
+  mutate(sampledate = as.character(sampledate) %>% ymd(.))
+
+#filter NAs
+secchi <- clarity_only2 %>%
+  filter(!is.na(secchi))
+
+#filter out anything without 200 obs
+secchi_200 <- secchi %>%
+  group_by(lagoslakeid) %>%
+  mutate(count = n()) %>%
+  filter(count > 200)
+
+### Take the mean secchi by lake
+mean_secchi_200 <- secchi_200 %>%
+  # Take summary by lake id
+  group_by(lagoslakeid) %>%
+  # take mean of secchi per lake id
+  summarize(mean_secchi=mean(secchi,na.rm=T)) %>%
+  #Get rid of NAs
+  filter(!is.na(mean_secchi))
+
+#Join datasets
+mean_spatial_secchi <- inner_join(spatial_lakes,mean_secchi_200,
+                          by='lagoslakeid') 
+
+#Make a map
+mapview(mean_spatial_secchi)
 
 ```
 
-
+The majority of lakes at least 200 observations are in the upper north east of the US. Specifically, in Minnesota, Michigan, and Maine.
